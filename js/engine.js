@@ -13,3 +13,14 @@ export function buildSegments(text, spans) {
 }
 
 export const escapeHtml = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// One span per lens per range; distinct reasons are joined with newlines.
+export function dedupe(spans) {
+  const m = new Map();
+  for (const s of spans) {
+    const k = `${s.lens}:${s.start}:${s.end}`, prev = m.get(k);
+    if (!prev) m.set(k, { ...s });
+    else if (!prev.reason.split('\n').includes(s.reason)) prev.reason += '\n' + s.reason;
+  }
+  return [...m.values()];
+}

@@ -8,3 +8,8 @@ test('partial overlaps split', () => {
 });
 test('escapes html', () => { assert.equal(escapeHtml('<script>&"'), '&lt;script&gt;&amp;&quot;'); });
 test('no spans gives one segment', () => { assert.equal(buildSegments('hello', []).length, 1); });
+import { dedupe } from '../js/engine.js';
+test('dedupe merges same-lens same-range spans', () => {
+  const d = dedupe([{start:0,end:3,lens:'a',reason:'x'},{start:0,end:3,lens:'a',reason:'x'},{start:0,end:3,lens:'a',reason:'y'},{start:0,end:3,lens:'b',reason:'x'}]);
+  assert.equal(d.length, 2); assert.equal(d[0].reason, 'x\ny');
+});
