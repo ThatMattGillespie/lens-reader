@@ -3,7 +3,7 @@ import { phraseSpans } from '../match.js';
 import { SRC } from '../sources.js';
 let words = [], phrases = [];
 export default {
-  id: 'slopwords', name: 'Slop lists', color: '#c08a1e',
+  id: 'slopwords', name: 'Slop lists', color: '#f5a300',
   source: { label: 'slop-forensics + antislop', url: 'https://github.com/sam-paech/slop-forensics' },
   async load({ fetchJson }) {
     const [w, p] = await Promise.all([

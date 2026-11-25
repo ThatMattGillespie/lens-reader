@@ -18,7 +18,7 @@ export function contentTokens(text) {
 }
 
 export default {
-  id: 'slopscore', name: 'slop-score', color: '#8a5cc7',
+  id: 'slopscore', name: 'slop-score', color: '#9b5cff',
   source: { label: 'sam-paech/slop-score', url: 'https://github.com/sam-paech/slop-score' },
   async load({ fetchJson, importModule }) {
     const [w, t, mod] = await Promise.all([

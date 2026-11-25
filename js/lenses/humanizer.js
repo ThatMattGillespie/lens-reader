@@ -26,7 +26,7 @@ const RULES = [
 const WORDS12 = ['actually','additionally','align with','bolstered','crucial','deep dive','delve','delves','enduring','enhance','garner','highlights','highlighting','interplay','intricate','intricacies','key','landscape','meticulous','meticulously','pivotal','quietly','robust','showcase','showcases','showcasing','tapestry','testament','underscore','underscores','valuable','vibrant'];
 
 export default {
-  id: 'humanizer', name: 'Humanizer', color: '#d9653b',
+  id: 'humanizer', name: 'Humanizer', color: '#ff5c39',
   source: { label: 'blader/humanizer', url: 'https://github.com/blader/humanizer' },
   run(text) {
     const out = RULES.flatMap(([n, why, re]) => regexSpans(text, re, 'humanizer', `Humanizer §${n}: ${why}`));

@@ -32,7 +32,7 @@ const REGEX = [
   ['Has shaped discussions about', /\bha(?:s|ve) shaped (?:conversations|discussions|debates?) (?:about|around|on)\b/gi],
 ];
 export default {
-  id: 'wikipedia', name: 'Wikipedia', color: '#3b78c4',
+  id: 'wikipedia', name: 'Wikipedia', color: '#2f6bff',
   source: { label: 'Signs of AI writing', url: 'https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing' },
   run(text) {
     const out = [];

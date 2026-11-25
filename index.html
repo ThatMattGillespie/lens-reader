@@ -5,45 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lens Reader</title>
 <meta name="description" content="Read one text through many AI-writing lenses at once, highlighted in place.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23b4441f'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23f6f3ee'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='8' fill='%23ffd23f' stroke='%23161311' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23ff6fae' stroke='%23161311' stroke-width='3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Literata:opsz,wght@7..72,400;7..72,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 <header class="top">
   <div class="brand">
-    <h1>Lens Reader</h1>
-    <p>Turn on lenses to see where each one flags the text. Darker highlights mean more lenses agree. With GLTR on, agreement shows in bold.</p>
+    <h1>Lens Reader<span class="dot" aria-hidden="true"></span></h1>
+    <p>Read one text through eight lenses for machine-written prose. Each lens underlines what it catches. Where lenses pile up, look closer.</p>
   </div>
   <button class="btn ghost" id="openSettings" aria-haspopup="dialog">Settings</button>
 </header>
 
 <main>
   <section id="editor" class="view">
-    <label class="cap" for="src">Your text</label>
-    <textarea id="src" spellcheck="false" placeholder="Paste a long sample. Nothing leaves your browser unless you turn on the Claude lens or ask for alternatives."></textarea>
+    <div class="paper">
+      <div class="paper-head">
+        <label class="cap" for="src">Your text</label>
+        <span class="wc" id="wc" aria-live="polite"></span>
+      </div>
+      <textarea id="src" spellcheck="false" placeholder="Paste a long sample here. Everything runs in your browser; only the Claude lens and rewrites send text to Anthropic."></textarea>
+    </div>
     <div class="row">
-      <button class="btn" id="read">Read with lenses</button>
-      <button class="btn ghost" id="sample">Load a sample</button>
+      <button class="btn primary" id="read">Read with lenses <kbd>⌘↵</kbd></button>
+      <button class="btn ghost" id="sample">Try a sample</button>
     </div>
   </section>
 
   <section id="reader" class="view" hidden>
-    <div class="toolbar" role="toolbar" aria-label="Lenses">
-      <div class="chips" id="chips"></div>
-      <div class="actions">
-        <button class="btn ghost sm" id="undo" disabled>Undo</button>
-        <button class="btn ghost sm" id="edit">Edit text</button>
+    <div class="toolbar" id="toolbar">
+      <div class="group">
+        <span class="glabel">Pattern lenses <small>instant, private</small></span>
+        <div class="chips" id="chipsPattern" role="group" aria-label="Pattern lenses"></div>
+      </div>
+      <div class="group">
+        <span class="glabel">Model lenses <small>run on tap</small></span>
+        <div class="chips" id="chipsModel" role="group" aria-label="Model lenses"></div>
+      </div>
+      <div class="controls">
+        <fieldset class="seg-ctl" id="agree">
+          <legend>Show flags from</legend>
+          <label><input type="radio" name="agree" value="1" checked><span>Any lens</span></label>
+          <label><input type="radio" name="agree" value="2"><span>2+ agree</span></label>
+          <label><input type="radio" name="agree" value="3"><span>3+ agree</span></label>
+        </fieldset>
+        <div class="actions">
+          <button class="btn ghost sm" id="undo" disabled>Undo</button>
+          <button class="btn ghost sm" id="edit">Edit text</button>
+        </div>
       </div>
       <div class="progress" id="progress" hidden><div class="bar"></div><span></span></div>
       <div class="legend" id="gltrLegend" hidden>
         <span><i data-b="0"></i>Top 10 guess</span><span><i data-b="1"></i>Top 100</span><span><i data-b="2"></i>Top 1000</span><span><i data-b="3"></i>Rarer</span>
       </div>
     </div>
-    <article id="text" class="text" aria-live="polite"></article>
+
+    <p class="summary" id="summary" role="status"></p>
+    <article id="text" class="text"></article>
     <div id="notes" class="notes"></div>
+
+    <details class="guide">
+      <summary>What each lens looks for</summary>
+      <ul id="guideList"></ul>
+      <p class="hint">One flag proves nothing. Professionals and machines share plenty of habits. Agreement between lenses that work differently is the more interesting signal.</p>
+    </details>
   </section>
 </main>
 
@@ -57,7 +85,7 @@
       <div id="unlockRow">
         <input id="pw" type="password" autocomplete="current-password" placeholder="Password from the site owner">
         <label class="check"><input type="checkbox" id="remember"> Remember on this device</label>
-        <div class="row"><button class="btn" id="unlock">Unlock</button></div>
+        <div class="row"><button class="btn primary" id="unlock">Unlock</button></div>
       </div>
       <p class="hint" id="sharedStatus" role="status"></p>
       <button class="btn ghost sm" id="lock" hidden>Lock shared key</button>
@@ -65,13 +93,13 @@
     </div>
     <label class="cap" for="key">Or use your own Anthropic API key</label>
     <input id="key" type="password" autocomplete="off" placeholder="sk-ant-…">
-    <p class="hint" id="keyHint">Stored only in this browser and sent only to api.anthropic.com. Used by the Claude lens and by Suggest alternatives.</p>
+    <p class="hint" id="keyHint">Stored only in this browser and sent only to api.anthropic.com. Used by the Claude lens and by rewrites.</p>
     <label class="cap" for="voice">Sample of your own writing (optional)</label>
-    <textarea id="voice" placeholder="A few paragraphs you wrote. Alternatives will match its voice."></textarea>
+    <textarea id="voice" placeholder="A few paragraphs you wrote. Rewrites will match its voice."></textarea>
     <p class="hint">Commercial detectors can't run here. To compare, paste your text into <a href="https://www.pangram.com" target="_blank" rel="noopener">Pangram</a> or <a href="https://gptzero.me" target="_blank" rel="noopener">GPTZero</a> yourself.</p>
     <div class="row end">
       <button class="btn ghost" value="forget" id="forget">Forget my key</button>
-      <button class="btn" value="close">Done</button>
+      <button class="btn primary" value="close">Done</button>
     </div>
   </form>
 </dialog>

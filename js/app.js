@@ -13,6 +13,17 @@ import gltr from './lenses/gltr.js';
 import claude from './lenses/claude.js';
 
 const LENSES = [humanizer, wikipedia, slopscore, defluff, slopwords, rhythm, claude, gltr];
+const BLURB = {
+  humanizer: 'Structural tells from the Humanizer skill: fake contrasts, triads, staged openers, dashes, stock words.',
+  wikipedia: "Wikipedia editors' field guide: puffery, vague attribution, AI vocabulary by model era.",
+  slopscore: "Words, three-word phrases and 'not X but Y' patterns LLMs overuse, measured against human writing.",
+  defluff: 'A curated list of clichés, hedges, corporate speak and AI vocabulary.',
+  slopwords: 'Ranked lists of the words LLM essays overuse and the stock phrases models repeat.',
+  rhythm: 'Runs of sentences that are all about the same length. People vary more.',
+  claude: 'Claude reads the whole text like an editor and quotes what sounds machine-written.',
+  gltr: 'Colors each word by how predictable it was to a small language model. Lots of green is a machine sign.',
+};
+const COST = { claude: 'uses API key', gltr: '128 MB, once' };
 const byId = Object.fromEntries(LENSES.map(l => [l.id, l]));
 const $ = id => document.getElementById(id);
 const store = {
@@ -43,6 +54,8 @@ const state = {
   busy: new Set(),
   undo: [],
   segs: [],
+  minAgree: 1,
+  patternCache: { text: null, byLens: {} },
 };
 
 const SAMPLE = `In today's fast-paced digital world, brand design is not just about aesthetics — it's about creating meaningful experiences that resonate with audiences. Studies show that users form opinions within milliseconds, which underscores the pivotal role of first impressions.
@@ -54,31 +67,45 @@ The studio serves as a vibrant hub for collaboration, fostering a culture of exp
 Ultimately, the future looks bright for organizations willing to invest in a holistic approach. I hope this helps!`;
 
 // ---------- rendering ----------
+// Pattern lenses run on every text (on or off) so off chips can preview their counts.
+function patternSpans(id) {
+  const c = state.patternCache;
+  if (c.text !== state.text) { c.text = state.text; c.byLens = {}; }
+  const lens = byId[id];
+  if (lens.load && lens.status !== 'ready') return null;
+  return (c.byLens[id] ??= dedupe(lens.run(state.text)));
+}
+function lensCount(id) {
+  const lens = byId[id];
+  if (lens.runAsync) { const r = state.asyncResults[id]; return r && r.text === state.text && id !== 'gltr' ? r.spans.length : null; }
+  return patternSpans(id)?.length ?? null;
+}
 function activeSpans() {
   const spans = [];
   for (const id of state.on) {
     const lens = byId[id];
-    if (lens.load && lens.status !== 'ready' && !lens.runAsync) continue;
     if (lens.runAsync) {
       const r = state.asyncResults[id];
       if (r && r.text === state.text) spans.push(...r.spans.map(s => id === 'gltr' ? { ...s, lens: 'gltr', reason: '' } : s));
-    } else spans.push(...lens.run(state.text));
+    } else spans.push(...(patternSpans(id) || []));
   }
   return dedupe(spans);
 }
 
 function render() {
   const spans = activeSpans();
-  const counts = {};
-  for (const s of spans) if (s.lens !== 'gltr') counts[s.lens] = (counts[s.lens] || 0) + 1;
-  renderChips(counts);
+  renderChips();
   state.segs = buildSegments(state.text, spans);
   const order = LENSES.filter(l => state.on.has(l.id) && l.kind !== 'wash').map(l => l.id);
-  let html = '';
+  let html = '', passages = 0, agreed = 0, inRun = false, runAgrees = false;
+  const closeRun = () => { if (inRun) { passages++; if (runAgrees) agreed++; } inRun = false; runAgrees = false; };
   state.segs.forEach((seg, i) => {
-    const hits = seg.spans.filter(s => s.lens !== 'gltr');
     const g = seg.spans.find(s => s.lens === 'gltr');
-    const lensIds = order.filter(id => hits.some(h => h.lens === id));
+    let hits = seg.spans.filter(s => s.lens !== 'gltr');
+    let lensIds = order.filter(id => hits.some(h => h.lens === id));
+    if (lensIds.length < state.minAgree) { hits = []; lensIds = []; }
+    if (hits.length) { inRun = true; if (lensIds.length >= 2) runAgrees = true; }
+    else if (seg.text.trim()) closeRun();
     if (!hits.length && !g) { html += escapeHtml(seg.text); return; }
     const shadow = lensIds.map((id, k) => `inset 0 -${2 * (k + 1)}px 0 ${byId[id].color}`).join(',');
     const attrs = [`class="seg"`, `data-i="${i}"`];
@@ -90,6 +117,15 @@ function render() {
     }
     html += `<span ${attrs.join(' ')}>${escapeHtml(seg.text)}</span>`;
   });
+  closeRun();
+  const lensesOn = order.length;
+  $('summary').innerHTML = !lensesOn
+    ? 'Every lens is off. Switch one on above to start reading.'
+    : passages
+      ? (state.minAgree > 1
+        ? `<b>${passages}</b> passage${passages === 1 ? '' : 's'} where ${state.minAgree} or more lenses agree.`
+        : `<b>${passages}</b> flagged passage${passages === 1 ? '' : 's'}${lensesOn > 1 ? `, <b>${agreed}</b> where two or more lenses agree` : ''}.`) + ' Tap any highlight to see why and get rewrites.'
+      : state.minAgree > 1 ? `No passage is flagged by ${state.minAgree} or more of the lenses that are on.` : 'Nothing flagged by the lenses that are on.';
   const el = $('text');
   el.innerHTML = html;
   el.classList.toggle('gltr-on', state.on.has('gltr') && !!state.asyncResults.gltr);
@@ -98,18 +134,23 @@ function render() {
   $('undo').disabled = !state.undo.length;
 }
 
-function renderChips(counts) {
-  $('chips').innerHTML = LENSES.map(l => {
-    const on = state.on.has(l.id);
-    let n = '';
-    if (state.busy.has(l.id) || l.status === 'loading') n = 'loading…';
-    else if (l.status === 'unavailable') n = 'unavailable';
-    else if (on && l.kind === 'wash') n = state.asyncResults.gltr?.text === state.text ? 'on' : '';
-    else if (on && l.needsKey && state.asyncResults[l.id] && state.asyncResults[l.id].text !== state.text) n = 'text changed, click to re-run';
-    else if (on) n = String(counts[l.id] || 0);
-    return `<button class="chip" style="--c:${l.color}" aria-pressed="${on}" data-id="${l.id}" data-status="${l.status || ''}" title="${escapeHtml(l.source.label)}${l.error ? ': ' + escapeHtml(l.error) : ''}">
-      <span class="sw"></span>${l.name}${n ? ` <span class="n">${n}</span>` : ''}</button>`;
-  }).join('');
+function chip(l) {
+  const on = state.on.has(l.id);
+  let n = '', cls = '';
+  if (state.busy.has(l.id) || l.status === 'loading') n = 'loading…';
+  else if (l.status === 'unavailable') n = 'unavailable';
+  else if (l.kind === 'wash') n = on && state.asyncResults.gltr?.text === state.text ? 'on' : COST.gltr;
+  else if (l.needsKey && on && state.asyncResults[l.id] && state.asyncResults[l.id].text !== state.text) n = 'tap to re-run';
+  else { const c = lensCount(l.id); n = c == null ? (COST[l.id] || '') : String(c); cls = c === 0 ? ' zero' : ''; }
+  return `<button class="chip${cls}" style="--c:${l.color}" aria-pressed="${on}" data-id="${l.id}" data-status="${l.status || ''}" title="${escapeHtml(BLURB[l.id])}${l.error ? ' (' + escapeHtml(l.error) + ')' : ''}">
+    <span class="sw" aria-hidden="true"></span><span class="nm">${l.name}</span>${n ? `<span class="n">${n}</span>` : ''}</button>`;
+}
+function renderChips() {
+  $('chipsPattern').innerHTML = LENSES.filter(l => !l.lazy).map(chip).join('');
+  $('chipsModel').innerHTML = LENSES.filter(l => l.lazy).map(chip).join('');
+}
+function renderGuide() {
+  $('guideList').innerHTML = LENSES.map(l => `<li style="--c:${l.color}"><span class="sw" aria-hidden="true"></span><div><b>${l.name}</b> ${escapeHtml(BLURB[l.id])} <a href="${l.source.url}" target="_blank" rel="noopener">${escapeHtml(l.source.label)}</a></div></li>`).join('');
 }
 
 function renderNotes() {
@@ -187,7 +228,7 @@ function openPop(el) {
       .map(r => r.startsWith(l.name + ': ') ? r.slice(l.name.length + 2) : r.startsWith(l.name + ' ') ? r.slice(l.name.length + 1) : r);
     return `<div class="reason" style="--c:${l.color}"><span class="sw"></span><div><b>${l.name}</b><br>${[...new Set(reasons)].map(escapeHtml).join('<br>')}<br><a href="${l.source.url}" target="_blank" rel="noopener">${escapeHtml(l.source.label)}</a></div></div>`;
   }).join('');
-  pop.innerHTML = `${rows}<div class="row"><button class="btn sm" id="suggest">Suggest alternatives</button></div><div class="alts" id="alts"></div>`;
+  pop.innerHTML = `${rows}<div class="row"><button class="btn sm" id="suggest">Rewrite this sentence</button></div><div class="alts" id="alts"></div>`;
   pop.hidden = false;
   const r = el.getBoundingClientRect();
   const left = Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - pop.offsetWidth - 16);
@@ -215,7 +256,7 @@ async function suggest(seg) {
   const sentence = state.text.slice(range.start, range.end);
   const reasons = [...new Set(seg.spans.filter(s => s.lens !== 'gltr').flatMap(s => s.reason.split('\n')))];
   const box = $('alts'); $('suggest').disabled = true;
-  box.innerHTML = '<p class="hint">Asking Claude for three rewrites…</p>';
+  box.innerHTML = `<p class="hint">Rewriting “${escapeHtml(sentence.length > 140 ? sentence.slice(0, 140) + '…' : sentence)}”</p><p class="hint">Asking Claude for three versions…</p>`;
   const ask = avoid => claudeAlternatives(key, { sentence, paragraph: paragraphAround(state.text, range.start, range.end), reasons, voice: store.get('lr_voice'), avoid });
   try {
     let alts = (await ask([])).map(a => ({ a, caught: patternCheck(a) }));
@@ -258,14 +299,20 @@ $('read').onclick = async () => {
   state.text = $('src').value.replace(/\r\n/g, '\n');
   if (!state.text.trim()) { $('src').focus(); return; }
   $('editor').hidden = true; $('reader').hidden = false;
+  window.scrollTo(0, 0);
   render();
-  await Promise.all([...state.on].map(id => ensureLoaded(byId[id])));
+  await Promise.all(LENSES.filter(l => !l.lazy).map(l => ensureLoaded(l).then(render)));
   render();
 };
-$('sample').onclick = () => { $('src').value = SAMPLE; $('read').click(); };
-$('edit').onclick = () => { closePop(); $('src').value = state.text; $('reader').hidden = true; $('editor').hidden = false; $('src').focus(); };
+const wc = () => { const n = ($('src').value.match(/\S+/g) || []).length; $('wc').textContent = n ? `${n.toLocaleString()} word${n === 1 ? '' : 's'}` : ''; };
+$('src').addEventListener('input', wc);
+$('src').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('read').click(); } });
+$('agree').addEventListener('change', e => { state.minAgree = +e.target.value; closePop(); render(); });
+renderGuide();
+$('sample').onclick = () => { $('src').value = SAMPLE; wc(); $('read').click(); };
+$('edit').onclick = () => { closePop(); $('src').value = state.text; wc(); $('reader').hidden = true; $('editor').hidden = false; $('src').focus(); };
 $('undo').onclick = () => { if (state.undo.length) { state.text = state.undo.pop(); afterTextChange(); } };
-$('chips').onclick = e => { const b = e.target.closest('.chip'); if (b) toggle(b.dataset.id); };
+$('toolbar').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) toggle(b.dataset.id); });
 $('openSettings').onclick = () => openSettings();
 $('key').oninput = e => store.set('lr_key', e.target.value.trim());
 $('voice').oninput = e => store.set('lr_voice', e.target.value);

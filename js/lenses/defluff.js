@@ -3,7 +3,7 @@ import { regexSpans, phraseSpans } from '../match.js';
 import { SRC } from '../sources.js';
 let lex = [], pats = [];
 export default {
-  id: 'defluff', name: 'defluff', color: '#2f9a6a',
+  id: 'defluff', name: 'defluff', color: '#10b37d',
   source: { label: 'ahmedak/defluff', url: 'https://github.com/ahmedak/defluff' },
   async load({ fetchJson }) {
     const [l, p] = await Promise.all([

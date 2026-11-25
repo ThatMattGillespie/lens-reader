@@ -20,7 +20,7 @@ export function tokenOffsets(text, pieces) {
 export const bucketOf = r => (r < 10 ? 0 : r < 100 ? 1 : r < 1000 ? 2 : 3);
 
 export default {
-  id: 'gltr', name: 'GLTR', kind: 'wash', color: '#4a9b8e', lazy: true,
+  id: 'gltr', name: 'GLTR', kind: 'wash', color: '#14b3a3', lazy: true,
   source: { label: 'GLTR (Gehrmann et al.) via GPT-2', url: 'http://gltr.io' },
   async load(_ctx, onProgress = () => {}) {
     if (model) return;

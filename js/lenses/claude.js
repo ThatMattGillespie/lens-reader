@@ -2,7 +2,7 @@
 import { claudeFlag } from '../claude.js';
 let cache = { text: null, spans: [] };
 export default {
-  id: 'claude', name: 'Claude', color: '#b0703a', lazy: true, needsKey: true,
+  id: 'claude', name: 'Claude', color: '#e0782b', lazy: true, needsKey: true,
   source: { label: 'Claude Opus 5.5 (your key)', url: 'https://docs.claude.com' },
   cached: text => (cache.text === text ? cache.spans : null),
   async runAsync(text, _p, key) {

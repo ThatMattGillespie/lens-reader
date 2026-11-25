@@ -6,7 +6,7 @@ export function sentences(text) {
   }).filter(s => s.words >= 3);
 }
 export default {
-  id: 'rhythm', name: 'Rhythm', color: '#d0457a',
+  id: 'rhythm', name: 'Rhythm', color: '#ff4fa3',
   source: { label: 'sentence-length variation', url: 'https://en.wikipedia.org/wiki/Burstiness' },
   run(text) {
     const s = sentences(text), hit = new Set();
