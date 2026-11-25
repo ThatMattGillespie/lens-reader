@@ -52,14 +52,25 @@
 <dialog id="settings">
   <form method="dialog" class="settings">
     <h2>Settings</h2>
-    <label class="cap" for="key">Anthropic API key</label>
+    <div id="sharedBox" hidden>
+      <label class="cap" for="pw">Shared key password</label>
+      <div id="unlockRow">
+        <input id="pw" type="password" autocomplete="current-password" placeholder="Password from the site owner">
+        <label class="check"><input type="checkbox" id="remember"> Remember on this device</label>
+        <div class="row"><button class="btn" id="unlock">Unlock</button></div>
+      </div>
+      <p class="hint" id="sharedStatus" role="status"></p>
+      <button class="btn ghost sm" id="lock" hidden>Lock shared key</button>
+      <hr>
+    </div>
+    <label class="cap" for="key">Or use your own Anthropic API key</label>
     <input id="key" type="password" autocomplete="off" placeholder="sk-ant-…">
-    <p class="hint">Stored only in this browser and sent only to api.anthropic.com. Used by the Claude lens and by Suggest alternatives.</p>
+    <p class="hint" id="keyHint">Stored only in this browser and sent only to api.anthropic.com. Used by the Claude lens and by Suggest alternatives.</p>
     <label class="cap" for="voice">Sample of your own writing (optional)</label>
     <textarea id="voice" placeholder="A few paragraphs you wrote. Alternatives will match its voice."></textarea>
     <p class="hint">Commercial detectors can't run here. To compare, paste your text into <a href="https://www.pangram.com" target="_blank" rel="noopener">Pangram</a> or <a href="https://gptzero.me" target="_blank" rel="noopener">GPTZero</a> yourself.</p>
     <div class="row end">
-      <button class="btn ghost" value="forget" id="forget">Forget key</button>
+      <button class="btn ghost" value="forget" id="forget">Forget my key</button>
       <button class="btn" value="close">Done</button>
     </div>
   </form>

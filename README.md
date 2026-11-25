@@ -23,6 +23,19 @@ Third-party lists load from jsDelivr, pinned to exact commits (see `js/sources.j
 
 Pattern lenses and GLTR run entirely in your browser. Your Anthropic key is stored only in your browser's localStorage and sent only to api.anthropic.com, when you turn on the Claude lens or ask for alternatives.
 
+## Sharing your API key with a password
+
+You can let friends use your Anthropic key without giving it to them directly.
+
+1. In the Anthropic Console, create a **separate workspace with a monthly spend limit**, and make a new key in it.
+2. Run `node scripts/make-vault.mjs`. It asks for the key and a password (20+ characters; a long random passphrase is best). Neither is shown on screen or saved.
+3. Commit and push the `vault.json` it creates. People unlock the key in Settings with the password.
+
+What this protects and what it doesn't:
+- `vault.json` is public. It is encrypted with AES-256-GCM using a key derived from your password (PBKDF2-SHA256, 600,000 iterations), so its safety depends on the password's length.
+- Anyone who unlocks it has the real key in their browser and could copy it. Share the password only with people you'd trust with the key itself.
+- To cut someone off, delete the key in the Console, make a new one, run the script with a new password, and push the new `vault.json`.
+
 ## Run locally
 
 ```

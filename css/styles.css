@@ -81,6 +81,9 @@ dialog::backdrop { background: rgb(0 0 0 / .4); }
 .settings { padding: 24px; }
 .settings h2 { font: 600 1.5rem Fraunces, serif; margin: 0 0 16px; }
 .settings textarea { min-height: 120px; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .875rem; }
+.check input { width: auto; }
+.settings hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0 24px; }
 .hint { font-size: .8125rem; color: var(--muted); margin: 8px 0 16px; }
 
 @media (max-width: 640px) {

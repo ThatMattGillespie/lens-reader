@@ -2,6 +2,7 @@ import { buildSegments, escapeHtml, dedupe } from './engine.js';
 import { loadLens } from './sources.js';
 import { sentenceAround, paragraphAround } from './quote.js';
 import { claudeAlternatives } from './claude.js';
+import { decryptKey } from './vault.js';
 import humanizer from './lenses/humanizer.js';
 import wikipedia from './lenses/wikipedia.js';
 import slopscore from './lenses/slopscore.js';
@@ -19,6 +20,21 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
   del: k => { try { localStorage.removeItem(k); } catch {} },
 };
+const session = {
+  get: k => { try { return sessionStorage.getItem(k) ?? ''; } catch { return ''; } },
+  set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} },
+  del: k => { try { sessionStorage.removeItem(k); } catch {} },
+};
+// The person's own key wins; otherwise a shared key unlocked from vault.json (this tab, or remembered).
+let sharedKey = '';
+const getKey = () => store.get('lr_key') || sharedKey || session.get('lr_shared') || store.get('lr_shared');
+let vault = null;
+fetch('vault.json', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(v => { vault = v; $('sharedBox').hidden = !v; updateShared(); }).catch(() => {});
+function updateShared() {
+  const on = !!(sharedKey || session.get('lr_shared') || store.get('lr_shared'));
+  if (on) $('sharedStatus').textContent = 'Shared key unlocked.';
+  $('unlockRow').hidden = on; $('lock').hidden = !on;
+}
 
 const state = {
   text: '',
@@ -125,8 +141,8 @@ async function ensureLoaded(lens) {
 
 async function runAsyncLens(lens) {
   if (state.asyncResults[lens.id]?.text === state.text) return;
-  const key = store.get('lr_key');
-  if (lens.needsKey && !key) { state.on.delete(lens.id); openSettings('Add your Anthropic API key to use the Claude lens.'); return; }
+  const key = getKey();
+  if (lens.needsKey && !key) { state.on.delete(lens.id); openSettings('Unlock the shared key or add your own to use the Claude lens.'); return; }
   const text = state.text;
   state.busy.add(lens.id); render();
   try {
@@ -193,8 +209,8 @@ function patternCheck(sentence) {
 }
 
 async function suggest(seg) {
-  const key = store.get('lr_key');
-  if (!key) { openSettings('Add your Anthropic API key to get alternatives.'); return; }
+  const key = getKey();
+  if (!key) { openSettings('Unlock the shared key or add your own to get alternatives.'); return; }
   const range = sentenceAround(state.text, seg.start, seg.end);
   const sentence = state.text.slice(range.start, range.end);
   const reasons = [...new Set(seg.spans.filter(s => s.lens !== 'gltr').flatMap(s => s.reason.split('\n')))];
@@ -233,7 +249,7 @@ function afterTextChange() {
 function openSettings(msg) {
   $('key').value = store.get('lr_key'); $('voice').value = store.get('lr_voice');
   const d = $('settings');
-  d.querySelector('.hint').textContent = msg || 'Stored only in this browser and sent only to api.anthropic.com. Used by the Claude lens and by Suggest alternatives.';
+  $('keyHint').textContent = msg || 'Stored only in this browser and sent only to api.anthropic.com. Used by the Claude lens and by Suggest alternatives.';
   d.showModal(); render();
 }
 
@@ -254,6 +270,18 @@ $('openSettings').onclick = () => openSettings();
 $('key').oninput = e => store.set('lr_key', e.target.value.trim());
 $('voice').oninput = e => store.set('lr_voice', e.target.value);
 $('forget').onclick = () => { store.del('lr_key'); $('key').value = ''; };
+$('unlock').onclick = async e => {
+  e.preventDefault();
+  const pw = $('pw').value; if (!pw || !vault) return;
+  $('unlock').disabled = true; $('sharedStatus').textContent = 'Unlocking…';
+  try {
+    sharedKey = await decryptKey(vault, pw);
+    if ($('remember').checked) store.set('lr_shared', sharedKey); else session.set('lr_shared', sharedKey);
+    $('pw').value = '';
+  } catch (err) { $('sharedStatus').textContent = err.message; }
+  $('unlock').disabled = false; updateShared();
+};
+$('lock').onclick = e => { e.preventDefault(); sharedKey = ''; session.del('lr_shared'); store.del('lr_shared'); $('sharedStatus').textContent = 'Shared key locked.'; updateShared(); };
 
 $('text').addEventListener('click', e => { const s = e.target.closest('.seg[data-hit]'); if (s) { e.stopPropagation(); openPop(s); } });
 $('text').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.seg[data-hit]')) { e.preventDefault(); openPop(e.target); } });
