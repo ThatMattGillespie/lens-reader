@@ -27,7 +27,7 @@ export default {
     T = await import(TJS);
     const progress_callback = p => { if (p.status === 'progress' && p.file?.endsWith('.onnx')) onProgress(p.progress / 100, 'download'); };
     tok = await T.AutoTokenizer.from_pretrained('Xenova/gpt2');
-    model = await T.AutoModelForCausalLM.from_pretrained('Xenova/gpt2', { dtype: 'q8', progress_callback });
+    model = await T.AutoModelForCausalLM.from_pretrained('Xenova/gpt2', { dtype: 'q8', model_file_name: 'decoder_model_merged', progress_callback });
   },
   async runAsync(text, onProgress = () => {}) {
     const ids = Array.from(tok.encode(text));
